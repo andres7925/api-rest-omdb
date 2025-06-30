@@ -1,15 +1,33 @@
-import { Controller, Get, Query, Param, HttpException, HttpStatus } from '@nestjs/common';
+import { 
+  Controller, 
+  Get, 
+  Post, 
+  Delete, 
+  Query, 
+  Param, 
+  Body, 
+  UseGuards, 
+  Request, 
+  HttpException, 
+  HttpStatus 
+} from '@nestjs/common';
 import {
   MoviesService,
   MovieSearchResponse,
   MovieDetailResponse,
 } from './movies.service';
+import { FavoritesService } from './favorites.service';
 import { SearchMoviesDto } from './dto/search-movies.dto';
+import { AddFavoriteDto } from './dto/add-favorite.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { omdbConfig } from '../config/omdb.config';
 
 @Controller('movies')
 export class MoviesController {
-  constructor(private readonly moviesService: MoviesService) {}
+  constructor(
+    private readonly moviesService: MoviesService,
+    private readonly favoritesService: FavoritesService,
+  ) {}
 
   @Get('info')
   getApiInfo() {
@@ -21,6 +39,11 @@ export class MoviesController {
         details: 'GET /movies/:id',
         test: 'GET /movies/test',
         info: 'GET /movies/info',
+        favorites: 'GET /movies/favorites/list (requiere autenticación)',
+        addFavorite: 'POST /movies/favorites/add (requiere autenticación)',
+        removeFavorite: 'DELETE /movies/favorites/remove/:imdbId (requiere autenticación)',
+        checkFavorite: 'GET /movies/favorites/check/:imdbId (requiere autenticación)',
+        testFavorites: 'GET /movies/favorites/test (requiere autenticación)',
       },
       configuration: {
         apiKey: omdbConfig.apiKey === 'demo' ? 'demo (limitado)' : 'configurado',
@@ -84,5 +107,73 @@ export class MoviesController {
     }
 
     return this.moviesService.getMovieById(id);
+  }
+
+  // Endpoints de favoritos (requieren autenticación)
+
+  @UseGuards(JwtAuthGuard)
+  @Get('favorites/test')
+  async testFavorites(@Request() req) {
+    try {
+      const userId = req.user.id;
+      const testData: AddFavoriteDto = {
+        imdbId: 'tt1234567',
+        title: 'Película de Prueba',
+        year: '2024',
+        poster: 'https://example.com/poster.jpg',
+        type: 'movie'
+      };
+
+      // Intentar agregar una película de prueba
+      const result = await this.favoritesService.addToFavorites(userId, testData);
+      
+      // Eliminar la película de prueba
+      await this.favoritesService.removeFromFavorites(userId, testData.imdbId);
+
+      return {
+        status: 'success',
+        message: 'Servicio de favoritos funcionando correctamente',
+        userId: userId,
+        testResult: result,
+        note: 'La película de prueba fue eliminada automáticamente'
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        message: error.message,
+        userId: req.user?.id,
+        error: error
+      };
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('favorites/list')
+  async getFavorites(@Request() req) {
+    const userId = req.user.id;
+    return await this.favoritesService.getFavorites(userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('favorites/add')
+  async addToFavorites(@Request() req, @Body() addFavoriteDto: AddFavoriteDto) {
+    const userId = req.user.id;
+    return await this.favoritesService.addToFavorites(userId, addFavoriteDto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('favorites/remove/:imdbId')
+  async removeFromFavorites(@Request() req, @Param('imdbId') imdbId: string) {
+    const userId = req.user.id;
+    await this.favoritesService.removeFromFavorites(userId, imdbId);
+    return { message: 'Película eliminada de favoritos exitosamente' };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('favorites/check/:imdbId')
+  async checkFavorite(@Request() req, @Param('imdbId') imdbId: string) {
+    const userId = req.user.id;
+    const isFavorite = await this.favoritesService.isFavorite(userId, imdbId);
+    return { isFavorite };
   }
 } 

@@ -6,6 +6,7 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { MoviesModule } from './movies/movies.module';
 import { User } from './entities/user.entity';
+import { FavoriteMovie } from './entities/favorite-movie.entity';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { User } from './entities/user.entity';
       username: 'postgres',
       password: '123',
       database: 'omdb_api',
-      entities: [User],
+      entities: [User, FavoriteMovie],
       synchronize: true, // Habilitado para desarrollo
     }),
     UsersModule,
